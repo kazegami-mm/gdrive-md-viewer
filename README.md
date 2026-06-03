@@ -2,9 +2,10 @@
 
 Google ドライブ上の `.md` ファイルを**整形表示**する Google Workspace アドオン（Apps Script 製）。
 
-- **サイドパネル**（CardService）: 軽量な生テキストプレビュー + 「全画面で整形表示」ボタン
+- **サイドパネル**（CardService）: Markdown を疑似整形したプレビュー + 「全画面で整形表示」ボタン
 - **全画面ビューア**（HtmlService + marked.js + DOMPurify）: GitHub 風に整形された Markdown 表示
-- OAuth スコープは `drive.file` のみ（**CASA 年次審査を回避**）
+- **全画面エディタ**（EasyMDE / MIT）: 表示 / 編集 / 分割の 3 モード、ショートカット（Ctrl+B/I/H/K/L、Ctrl+S 保存）、Drive へ上書き保存
+- OAuth スコープは `drive.file` ほか非機密のみ（**CASA 年次審査を回避**。`drive.file` は読み書き両対応なので保存も追加スコープ不要）
 
 > 📘 **構築手順・ハマりポイント全集・Marketplace 公開フロー**は [`docs/SETUP-GUIDE.md`](docs/SETUP-GUIDE.md) に実態ベースでまとめてある。
 > 同種のアドオンを作る際は必ずこちらを参照（403 ループ / 標準 GCP 切替 / urlFetchWhitelist / WEBAPP_URL の罠を網羅）。
@@ -21,11 +22,12 @@ gdrive-md-viewer/
 ├── src/
 │   ├── appsscript.json   # マニフェスト（スコープ・アドオントリガー）
 │   ├── Config.gs         # 定数
-│   ├── FileService.gs    # Drive ファイル読み取り
+│   ├── FileService.gs    # Drive ファイル読み取り / 書き込み（保存）
 │   ├── CardBuilder.gs    # サイドパネル UI（CardService）
+│   ├── MarkdownToCard.gs # Markdown -> CardService ウィジェット（疑似整形）
 │   ├── DriveTrigger.gs   # トリガーハンドラ（onDriveItemsSelected ほか）
-│   ├── Code.gs           # Web アプリ（全画面ビューア doGet）
-│   ├── Viewer.html       # 全画面ビューア本体
+│   ├── Code.gs           # Web アプリ（全画面ビューア / エディタ doGet）
+│   ├── Viewer.html       # 全画面ビューア / エディタ本体（EasyMDE）
 │   └── Styles.html       # GitHub 風 CSS
 ├── .claspignore
 ├── .clasp.json           # clasp create で生成（rootDir を src に設定）

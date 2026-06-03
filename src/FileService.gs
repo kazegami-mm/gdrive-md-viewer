@@ -142,3 +142,64 @@ function getMarkdownContent(fileId) {
     };
   }
 }
+
+// メディアアップロード用エンドポイント（本文の書き戻しは /upload 配下を使う）
+var DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3/files/';
+
+/**
+ * 指定ファイル ID へ Markdown 本文を上書き保存する（drive.file の範囲で書き込み可）。
+ * Drive API v3 のシンプルメディアアップロード（PATCH ?uploadType=media）を使う。
+ * drive.file は「ユーザーが選択/許可したファイル」への読み書きを許すため、
+ * 追加スコープ無し＝CASA 回避を維持したまま保存できる。
+ * @param {string} fileId
+ * @param {string} content 保存する Markdown 本文
+ * @return {{ok: boolean, error?: {code: string, message: string}}}
+ */
+function saveMarkdownContent(fileId, content) {
+  if (!fileId) {
+    return { ok: false, error: { code: 'NO_FILE_ID', message: 'ファイル ID がありません。' } };
+  }
+
+  try {
+    var bytes = Utilities.newBlob(content == null ? '' : String(content), 'text/markdown').getBytes();
+    if (bytes.length > CONFIG.MAX_FILE_BYTES) {
+      return { ok: false, error: { code: 'TOO_LARGE', message: 'ファイルが大きすぎます（5MB 上限）。' } };
+    }
+
+    var url = DRIVE_UPLOAD_BASE + encodeURIComponent(fileId) +
+      '?uploadType=media&supportsAllDrives=true';
+    var res = UrlFetchApp.fetch(url, {
+      method: 'patch',
+      contentType: 'text/markdown; charset=UTF-8',
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      payload: bytes,
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+
+    if (code === 200 || code === 201) {
+      return { ok: true };
+    }
+
+    if (code === 401 || code === 403) {
+      var body = res.getContentText();
+      if (body.indexOf('has not been used') !== -1 ||
+          body.indexOf('is disabled') !== -1 ||
+          body.indexOf('accessNotConfigured') !== -1 ||
+          body.indexOf('SERVICE_DISABLED') !== -1) {
+        return { ok: false, error: { code: 'API_DISABLED', message: 'Drive API が有効化されていません。' } };
+      }
+      return { ok: false, error: { code: 'NO_PERMISSION', message: 'このファイルへの書き込みが許可されていません。' } };
+    }
+    if (code === 404) {
+      return { ok: false, error: { code: 'NO_PERMISSION', message: 'このファイルへの書き込みが許可されていません。' } };
+    }
+    return { ok: false, error: { code: 'SAVE_ERROR', message: '保存に失敗しました (HTTP ' + code + ')。' } };
+
+  } catch (e) {
+    return {
+      ok: false,
+      error: { code: 'SAVE_ERROR', message: '保存できませんでした。(' + e.message + ')' }
+    };
+  }
+}

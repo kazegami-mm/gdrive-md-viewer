@@ -6,6 +6,9 @@
     --muted: #59636e;
     --accent: #1a73e8;
     --code-bg: #f6f8fa;
+    /* topbar の高さと EasyMDE ツールバー高さ。各モードのオフセットに使う */
+    --topbar-h: 56px;
+    --emde-toolbar-h: 50px;
   }
 
   * { box-sizing: border-box; }
@@ -20,16 +23,149 @@
     line-height: 1.6;
   }
 
+  /* topbar は fixed。EasyMDE の fullscreen/side-by-side が使う position:fixed と
+     同じ座標系になり、top ずらしが安定する。body に同じ高さの余白を確保する。 */
+  body { padding-top: var(--topbar-h); }
+
   #topbar {
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 10;
+    left: 0;
+    right: 0;
+    height: var(--topbar-h);
+    /* EasyMDE のツールバー/フルスクリーンより前面に置く */
+    z-index: 30;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
+    padding: 0 24px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
-  #filename { color: var(--fg); }
+  #filename {
+    color: var(--fg);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #toolbar-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+  }
+  .topbtn {
+    font: inherit;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .topbtn:hover { background: var(--code-bg); }
+  .topbtn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .topbtn.primary:hover { filter: brightness(1.05); }
+  .topbtn:disabled { opacity: .6; cursor: default; }
+
+  /* セグメント（表示 / 編集 / 分割）— 連結したトグル群 */
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .segbtn {
+    font: inherit;
+    font-weight: 600;
+    border: 0;
+    border-left: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 6px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .segbtn:first-child { border-left: 0; }
+  .segbtn:hover { background: var(--code-bg); }
+  .segbtn.is-active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .dirty-flag {
+    font-size: 13px;
+    font-weight: 600;
+    color: #b06000;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .dirty-flag.ok { color: #137333; }
+  .dirty-flag.error { color: #b3261e; }
+
+  /* --- メイン領域 --- */
+  /* 幅: 固定 / 全幅。単一モード(表示・編集)は読みやすい 980px、
+     分割は左右2ペインで窮屈にならないよう広め(1400px)にする。 */
+  body.width-fixed #content,
+  body.width-fixed.mode-edit #edit-area { max-width: 980px; margin: 0 auto; }
+  body.width-fixed.mode-split #edit-area { max-width: 1400px; margin: 0 auto; }
+  /* 全幅でも端ピッタリは窮屈なので左右に少し余白を持たせる */
+  body.width-full  #content { max-width: none; margin: 0; }
+  body.width-full  #edit-area { max-width: none; margin: 0; padding: 0 24px; }
+
+  /* 編集 / 分割エリア（flex で 1〜2 ペイン） */
+  #edit-area {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+  }
+  #editor-pane { flex: 1 1 50%; min-width: 0; }
+  #preview-pane {
+    flex: 1 1 50%;
+    min-width: 0;
+    border-left: 1px solid var(--border);
+    overflow: auto;
+  }
+  /* 分割モードのときだけプレビューを出す */
+  body.mode-edit  #preview-pane { display: none; }
+  body.mode-split #preview-pane { display: block; }
+  body.mode-edit  #editor-pane,
+  body.mode-split #editor-pane { display: block; }
+
+  /* EasyMDE: ツールバーを topbar 直下に sticky 固定（スクロール追従） */
+  .EasyMDEContainer .editor-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--bg);
+    border-top: 0;
+  }
+  .EasyMDEContainer .CodeMirror {
+    border: 0;
+    border-radius: 0;
+    /* 表示モード(.markdown-body)と文字サイズ・行間・フォントを統一して
+       表示⇄編集で文字の大きさが変わる違和感をなくす */
+    font-size: 16px;
+    line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP",
+      Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    padding: 16px 8px;
+  }
+  /* CodeMirror 内のインラインコード等もエディタ既定の等幅に戻さない（本文フォント維持） */
+  .EasyMDEContainer .CodeMirror pre.CodeMirror-line,
+  .EasyMDEContainer .CodeMirror pre.CodeMirror-line-like {
+    font-family: inherit;
+  }
+  /* preview/side-by-side/fullscreen は使わないが、万一に備え無効化 */
+  .EasyMDEContainer .editor-preview-side,
+  .EasyMDEContainer .editor-preview-active-side { display: none !important; }
 
   .status {
     max-width: 980px;
@@ -43,6 +179,12 @@
     max-width: 980px;
     margin: 0 auto;
     padding: 32px 24px 80px;
+  }
+  /* 分割の右ペインは親(edit-area)が幅を決めるので、中の markdown-body は幅制約を外す */
+  #preview-pane.markdown-body {
+    max-width: none;
+    margin: 0;
+    padding: 24px 24px 80px;
   }
 
   .markdown-body h1,

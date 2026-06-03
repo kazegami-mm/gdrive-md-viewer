@@ -10,66 +10,239 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- DOMPurify: XSS サニタイズ -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+  <!-- EasyMDE (MIT): Markdown エディタ（ツールバー・ショートカット） -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 </head>
-<body>
+<body class="width-fixed">
   <div id="topbar">
     <span id="filename">読み込み中…</span>
+
+    <span id="toolbar-actions" style="display:none;">
+      <span id="dirty-flag" class="dirty-flag" style="display:none;">● 未保存</span>
+
+      <!-- モード切替（表示制御はここに一元化） -->
+      <span class="seg" role="group" aria-label="表示モード">
+        <button id="m-view"  class="segbtn is-active" type="button" title="整形表示">👁 表示</button>
+        <button id="m-edit"  class="segbtn" type="button" title="編集">✏️ 編集</button>
+        <button id="m-split" class="segbtn" type="button" title="編集 + プレビュー">⊞ 分割</button>
+      </span>
+
+      <!-- 幅トグル -->
+      <button id="btn-width" class="topbtn" type="button" title="表示幅を切り替え（固定 / 全幅）">↔ 全幅</button>
+
+      <!-- 保存 -->
+      <button id="btn-save" class="topbtn primary" type="button" title="Drive に保存 (Ctrl+S)" style="display:none;">💾 保存</button>
+    </span>
   </div>
 
   <div id="status" class="status">Markdown を読み込んでいます…</div>
-  <article id="content" class="markdown-body" style="display:none;"></article>
+
+  <!-- メイン領域: モードに応じて表示を切り替える -->
+  <div id="main" style="display:none;">
+    <!-- 表示（整形ビュー） -->
+    <article id="content" class="markdown-body"></article>
+
+    <!-- 編集 / 分割 -->
+    <div id="edit-area">
+      <div id="editor-pane">
+        <textarea id="editor"></textarea>
+      </div>
+      <div id="preview-pane" class="markdown-body"></div>
+    </div>
+  </div>
 
   <script>
-    // テンプレートから渡された fileId
     var FILE_ID = '<?= fileId ?>';
+
+    var state = {
+      name: '',
+      original: '',     // 最後に保存（読み込み）した本文
+      easymde: null,
+      mode: 'view',     // 'view' | 'edit' | 'split'
+      widthFull: false,
+      saving: false
+    };
+
+    function renderMd(target, rawMd) {
+      var dirty = marked.parse(rawMd, { gfm: true, breaks: false });
+      target.innerHTML = DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true } });
+    }
 
     function showStatus(msg, isError) {
       var s = document.getElementById('status');
       s.textContent = msg;
       s.className = 'status' + (isError ? ' error' : '');
       s.style.display = 'block';
-      document.getElementById('content').style.display = 'none';
+      document.getElementById('main').style.display = 'none';
     }
 
-    function render(name, rawMd) {
-      document.getElementById('filename').textContent = name;
-      document.title = name + ' - Markdown Viewer';
+    function currentText() {
+      return state.easymde ? state.easymde.value() : state.original;
+    }
+    function isDirty() {
+      return (state.mode === 'edit' || state.mode === 'split') && currentText() !== state.original;
+    }
+    function updateDirtyFlag() {
+      var el = document.getElementById('dirty-flag');
+      if (isDirty()) { el.style.display = 'inline'; el.textContent = '● 未保存'; el.className = 'dirty-flag'; }
+      else { el.style.display = 'none'; }
+    }
 
-      var dirty = marked.parse(rawMd, { gfm: true, breaks: false });
-      var clean = DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true } });
-
+    // ---- モード切替（表示制御の一元管理）----
+    function setMode(mode) {
+      state.mode = mode;
       var content = document.getElementById('content');
-      content.innerHTML = clean;
-      content.style.display = 'block';
-      document.getElementById('status').style.display = 'none';
+      var editArea = document.getElementById('edit-area');
+      var btnSave = document.getElementById('btn-save');
+
+      // セグメントのアクティブ表示
+      document.getElementById('m-view').classList.toggle('is-active', mode === 'view');
+      document.getElementById('m-edit').classList.toggle('is-active', mode === 'edit');
+      document.getElementById('m-split').classList.toggle('is-active', mode === 'split');
+
+      // body にモードクラス（CSS で分割/単一を制御）
+      document.body.classList.remove('mode-view', 'mode-edit', 'mode-split');
+      document.body.classList.add('mode-' + mode);
+
+      if (mode === 'view') {
+        renderMd(content, currentText());  // 編集内容があればそれを反映
+        content.style.display = 'block';
+        editArea.style.display = 'none';
+        btnSave.style.display = 'none';
+      } else {
+        initEditorIfNeeded();
+        content.style.display = 'none';
+        editArea.style.display = 'flex';
+        btnSave.style.display = 'inline-block';
+        // 分割時は右ペインにライブプレビュー
+        if (mode === 'split') {
+          renderMd(document.getElementById('preview-pane'), currentText());
+        }
+        setTimeout(function () { if (state.easymde) state.easymde.codemirror.refresh(); }, 0);
+      }
+      updateDirtyFlag();
+    }
+
+    function setWidthFull(full) {
+      state.widthFull = full;
+      document.body.classList.toggle('width-full', full);
+      document.body.classList.toggle('width-fixed', !full);
+      document.getElementById('btn-width').textContent = full ? '↔ 固定幅' : '↔ 全幅';
+      setTimeout(function () { if (state.easymde) state.easymde.codemirror.refresh(); }, 0);
+    }
+
+    function initEditorIfNeeded() {
+      if (state.easymde) return;
+      state.easymde = new EasyMDE({
+        element: document.getElementById('editor'),
+        initialValue: state.original,
+        autoDownloadFontAwesome: true,
+        spellChecker: false,
+        status: ['lines', 'words'],
+        // ツールバーは編集操作だけ（preview/side-by-side/guide は topbar に集約したので除外）
+        toolbar: [
+          'bold', 'italic', 'heading', '|',
+          'quote', 'unordered-list', 'ordered-list', '|',
+          'link', 'image', 'code', 'table', 'horizontal-rule'
+        ],
+        shortcuts: {
+          toggleBold: 'Ctrl-B',
+          toggleItalic: 'Ctrl-I',
+          drawLink: 'Ctrl-K',
+          toggleHeadingSmaller: 'Ctrl-H',
+          toggleCodeBlock: 'Ctrl-Alt-C',
+          toggleUnorderedList: 'Ctrl-L'
+        }
+      });
+
+      var cm = state.easymde.codemirror;
+      cm.on('change', function () {
+        updateDirtyFlag();
+        if (state.mode === 'split') {
+          renderMd(document.getElementById('preview-pane'), currentText());
+        }
+      });
+      // Ctrl/Cmd+S を Drive 保存に
+      cm.options.extraKeys['Ctrl-S'] = function () { doSave(); };
+      cm.options.extraKeys['Cmd-S'] = function () { doSave(); };
+    }
+
+    // ---- 保存 ----
+    function doSave() {
+      if (state.saving) return;
+      if (!isDirty()) { flash('変更はありません。'); return; }
+      var text = currentText();
+      state.saving = true; setSaving(true);
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          state.saving = false; setSaving(false);
+          if (!result || !result.ok) {
+            flash('⚠ ' + ((result && result.error) ? result.error.message : '保存に失敗しました。'), true);
+            return;
+          }
+          state.original = text;
+          updateDirtyFlag();
+          flash('✅ 保存しました');
+        })
+        .withFailureHandler(function (err) {
+          state.saving = false; setSaving(false);
+          flash('⚠ サーバーエラー: ' + (err && err.message ? err.message : err), true);
+        })
+        .saveMarkdownForViewer(FILE_ID, text);
+    }
+    function setSaving(on) {
+      var btn = document.getElementById('btn-save');
+      btn.disabled = on;
+      btn.textContent = on ? '💾 保存中…' : '💾 保存';
+    }
+
+    var flashTimer = null;
+    function flash(msg, isError) {
+      var el = document.getElementById('dirty-flag');
+      el.style.display = 'inline';
+      el.textContent = msg;
+      el.className = 'dirty-flag' + (isError ? ' error' : ' ok');
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(updateDirtyFlag, 2500);
     }
 
     function onSuccess(result) {
       if (!result || !result.ok) {
-        var msg = (result && result.error) ? result.error.message : 'ファイルを読み込めませんでした。';
-        showStatus(msg, true);
+        showStatus((result && result.error) ? result.error.message : 'ファイルを読み込めませんでした。', true);
         return;
       }
-      render(result.data.name, result.data.content);
+      state.name = result.data.name;
+      state.original = result.data.content;
+      document.getElementById('filename').textContent = state.name;
+      document.title = state.name + ' - Markdown Viewer';
+      document.getElementById('toolbar-actions').style.display = 'inline-flex';
+      document.getElementById('status').style.display = 'none';
+      document.getElementById('main').style.display = 'block';
+      setMode('view');
     }
-
     function onFailure(err) {
       showStatus('サーバーエラー: ' + (err && err.message ? err.message : err), true);
     }
 
     window.addEventListener('load', function () {
-      if (!FILE_ID) {
-        showStatus('ファイルが指定されていません。Drive のサイドパネルから開いてください。', true);
-        return;
+      if (!FILE_ID) { showStatus('ファイルが指定されていません。Drive のサイドパネルから開いてください。', true); return; }
+      if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined' || typeof EasyMDE === 'undefined') {
+        showStatus('表示ライブラリの読み込みに失敗しました。ネットワークを確認してください。', true); return;
       }
-      if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
-        showStatus('表示ライブラリの読み込みに失敗しました。ネットワークを確認してください。', true);
-        return;
-      }
-      google.script.run
-        .withSuccessHandler(onSuccess)
-        .withFailureHandler(onFailure)
-        .getMarkdownForViewer(FILE_ID);
+
+      document.getElementById('m-view').addEventListener('click', function () { setMode('view'); });
+      document.getElementById('m-edit').addEventListener('click', function () { setMode('edit'); });
+      document.getElementById('m-split').addEventListener('click', function () { setMode('split'); });
+      document.getElementById('btn-width').addEventListener('click', function () { setWidthFull(!state.widthFull); });
+      document.getElementById('btn-save').addEventListener('click', doSave);
+
+      window.addEventListener('beforeunload', function (e) {
+        if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+      });
+
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).getMarkdownForViewer(FILE_ID);
     });
   </script>
 </body>

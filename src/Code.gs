@@ -39,3 +39,14 @@ function include(filename) {
 function getMarkdownForViewer(fileId) {
   return getMarkdownContent(fileId);
 }
+
+/**
+ * クライアント（Viewer.html）から google.script.run で呼ばれる。
+ * 編集後の Markdown 本文を Drive の元ファイルへ上書き保存する。
+ * @param {string} fileId
+ * @param {string} content
+ * @return {{ok: boolean, error?: {code: string, message: string}}}
+ */
+function saveMarkdownForViewer(fileId, content) {
+  return saveMarkdownContent(fileId, content);
+}
