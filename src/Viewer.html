@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Viewer</title>
+  <?!= include('Styles'); ?>
+  <!-- marked.js: Markdown -> HTML パーサ -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+  <!-- DOMPurify: XSS サニタイズ -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+</head>
+<body>
+  <div id="topbar">
+    <span id="filename">読み込み中…</span>
+  </div>
+
+  <div id="status" class="status">Markdown を読み込んでいます…</div>
+  <article id="content" class="markdown-body" style="display:none;"></article>
+
+  <script>
+    // テンプレートから渡された fileId
+    var FILE_ID = '<?= fileId ?>';
+
+    function showStatus(msg, isError) {
+      var s = document.getElementById('status');
+      s.textContent = msg;
+      s.className = 'status' + (isError ? ' error' : '');
+      s.style.display = 'block';
+      document.getElementById('content').style.display = 'none';
+    }
+
+    function render(name, rawMd) {
+      document.getElementById('filename').textContent = name;
+      document.title = name + ' - Markdown Viewer';
+
+      var dirty = marked.parse(rawMd, { gfm: true, breaks: false });
+      var clean = DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true } });
+
+      var content = document.getElementById('content');
+      content.innerHTML = clean;
+      content.style.display = 'block';
+      document.getElementById('status').style.display = 'none';
+    }
+
+    function onSuccess(result) {
+      if (!result || !result.ok) {
+        var msg = (result && result.error) ? result.error.message : 'ファイルを読み込めませんでした。';
+        showStatus(msg, true);
+        return;
+      }
+      render(result.data.name, result.data.content);
+    }
+
+    function onFailure(err) {
+      showStatus('サーバーエラー: ' + (err && err.message ? err.message : err), true);
+    }
+
+    window.addEventListener('load', function () {
+      if (!FILE_ID) {
+        showStatus('ファイルが指定されていません。Drive のサイドパネルから開いてください。', true);
+        return;
+      }
+      if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+        showStatus('表示ライブラリの読み込みに失敗しました。ネットワークを確認してください。', true);
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(onFailure)
+        .getMarkdownForViewer(FILE_ID);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<style>
+  :root {
+    --fg: #1f2328;
+    --bg: #ffffff;
+    --border: #d1d9e0;
+    --muted: #59636e;
+    --accent: #1a73e8;
+    --code-bg: #f6f8fa;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP",
+      Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  #topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    font-weight: 600;
+  }
+  #filename { color: var(--fg); }
+
+  .status {
+    max-width: 980px;
+    margin: 40px auto;
+    padding: 0 24px;
+    color: var(--muted);
+  }
+  .status.error { color: #b3261e; }
+
+  .markdown-body {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .3em;
+    margin-top: 1.5em;
+  }
+  .markdown-body h1 { font-size: 2em; }
+  .markdown-body h2 { font-size: 1.5em; }
+  .markdown-body h3 { font-size: 1.25em; }
+
+  .markdown-body code {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: .2em .4em;
+    font-size: 85%;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+      "Liberation Mono", Menlo, monospace;
+  }
+  .markdown-body pre {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 16px;
+    overflow: auto;
+  }
+  .markdown-body pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 100%;
+  }
+
+  .markdown-body blockquote {
+    margin: 0;
+    padding: 0 1em;
+    color: var(--muted);
+    border-left: .25em solid var(--border);
+  }
+
+  .markdown-body table {
+    border-collapse: collapse;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow: auto;
+  }
+  .markdown-body th,
+  .markdown-body td {
+    border: 1px solid var(--border);
+    padding: 6px 13px;
+  }
+  .markdown-body tr:nth-child(2n) { background: var(--code-bg); }
+
+  .markdown-body img { max-width: 100%; }
+
+  .markdown-body a { color: var(--accent); text-decoration: none; }
+  .markdown-body a:hover { text-decoration: underline; }
+
+  .markdown-body hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+</style>

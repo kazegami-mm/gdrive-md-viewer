@@ -1,0 +1,6 @@
+node_modules/
+.tasks/
+# clasp の認証情報（絶対にコミットしない）
+.clasprc.json
+~/.clasprc.json
+*.log
