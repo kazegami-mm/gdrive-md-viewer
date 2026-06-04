@@ -43,10 +43,12 @@ function getMarkdownForViewer(fileId) {
 /**
  * クライアント（Viewer.html）から google.script.run で呼ばれる。
  * 編集後の Markdown 本文を Drive の元ファイルへ上書き保存する。
+ * expectedRev は読み込み時に取得したリビジョン情報で、競合検出（楽観ロック）に使う。
  * @param {string} fileId
  * @param {string} content
- * @return {{ok: boolean, error?: {code: string, message: string}}}
+ * @param {{md5?: string, modifiedTime?: string, version?: string}} [expectedRev]
+ * @return {{ok: boolean, rev?: Object, verified?: boolean, error?: {code: string, message: string}}}
  */
-function saveMarkdownForViewer(fileId, content) {
-  return saveMarkdownContent(fileId, content);
+function saveMarkdownForViewer(fileId, content, expectedRev) {
+  return saveMarkdownContent(fileId, content, expectedRev);
 }

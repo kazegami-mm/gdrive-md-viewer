@@ -166,15 +166,19 @@ function inlineMd_(s) {
     return '<font color="#80868b"><i>🖼 ' + (alt || '画像') + '</i></font>';
   });
 
-  // リンク [text](url) → <a>
-  // CardService の <a> は http(s):// の絶対 URL のみ許可。
-  // アンカー(#...)・相対パス・mailto 等はリンク化せずラベルだけ残す
-  // （不正 URL は SafeHtmlFilter で弾かれランタイムエラーになるため）。
+  // リンク [text](url) → ラベル＋URL のテキスト表示（クリック可能リンクにはしない）
+  //
+  // 重要: CardService の <a href> でリンクを開くには、その URL プレフィックスが
+  // appsscript.json の openLinkUrlPrefixes に登録されている必要がある。公開アドオンでは
+  // ユーザーが任意の外部 URL を含む .md を開くため、未登録 URL があると SafeHtmlFilter で
+  // 弾かれてサイドパネル全体がランタイムエラーで落ちる（github.com 等で再現）。
+  // そこでサイドパネルでは <a> 化せず、ラベルを下線＋URL を淡色で添えるに留め、
+  // クリック可能リンクは全画面ビューア（marked.js）に委ねる。これで任意 URL でも落ちない。
   t = t.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, function (m, label, url) {
-    if (/^https?:\/\//i.test(url)) {
-      return '<a href="' + url + '">' + label + '</a>';
-    }
-    return '<u>' + label + '</u>'; // リンク先は出せないので下線でリンクらしさだけ残す
+    var shown = (/^https?:\/\//i.test(url))
+      ? ' <font color="#80868b">(' + url + ')</font>'
+      : '';
+    return '<u>' + label + '</u>' + shown;
   });
 
   // 太字 **text** / __text__

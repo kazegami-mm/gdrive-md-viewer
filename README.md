@@ -10,6 +10,22 @@ Google ドライブ上の `.md` ファイルを**整形表示**する Google Wor
 > 📘 **構築手順・ハマりポイント全集・Marketplace 公開フロー**は [`docs/SETUP-GUIDE.md`](docs/SETUP-GUIDE.md) に実態ベースでまとめてある。
 > 同種のアドオンを作る際は必ずこちらを参照（403 ループ / 標準 GCP 切替 / urlFetchWhitelist / WEBAPP_URL の罠を網羅）。
 
+### 公開関連ドキュメント（docs/）
+
+| ファイル | 用途 |
+|----------|------|
+| [`docs/SETUP-GUIDE.md`](docs/SETUP-GUIDE.md) | 構築手順・ハマりポイント全集 |
+| [`docs/PUBLISH-CHECKLIST.md`](docs/PUBLISH-CHECKLIST.md) | 全世界一般公開のチェックリスト（OAuth 本番化〜審査提出） |
+| [`docs/PRIVACY-POLICY.md`](docs/PRIVACY-POLICY.md) | プライバシーポリシー草案（日英）。公開 URL 化が必要 |
+| [`docs/TERMS-OF-SERVICE.md`](docs/TERMS-OF-SERVICE.md) | 利用規約草案（日英）。公開 URL 化が必要 |
+| [`docs/MARKETPLACE-LISTING.md`](docs/MARKETPLACE-LISTING.md) | ストア掲載文・アイコン/スクショ仕様 |
+| [`docs/SCREENSHOT-GUIDE.md`](docs/SCREENSHOT-GUIDE.md) | スクリーンショット撮影手順（5 シーン・整形・命名） |
+| [`docs/BROWSER-CLAUDE-TEST-PROMPT.md`](docs/BROWSER-CLAUDE-TEST-PROMPT.md) | ブラウザ操作 Claude に実機テストを代行させるプロンプト（T1〜T10） |
+| [`docs/BROWSER-CLAUDE-SCREENSHOT-PROMPT.md`](docs/BROWSER-CLAUDE-SCREENSHOT-PROMPT.md) | ブラウザ操作 Claude にスクショ撮影を代行させるプロンプト（5 シーン） |
+
+> 🔒 **データ保護**: 保存時に競合検出（楽観ロック）・保存後 md5 検証・編集権限/MIME 検証を行い、
+> 既存ファイルを黙って壊さない設計。CDN 障害時はプレーン textarea にフォールバックして編集・保存を維持。
+
 ## MVP の目的
 
 Drive で `.md` を選ぶ → サイドパネルにプレビュー → 「全画面で表示」で整形描画。

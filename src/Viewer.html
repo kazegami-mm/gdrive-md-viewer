@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markdown Viewer</title>
   <?!= include('Styles'); ?>
-  <!-- marked.js: Markdown -> HTML パーサ -->
+  <!-- marked.js: Markdown -> HTML パーサ（無くてもプレーン表示にフォールバック） -->
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-  <!-- DOMPurify: XSS サニタイズ -->
+  <!-- DOMPurify: XSS サニタイズ（無ければ marked 出力は使わずプレーン表示） -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
-  <!-- EasyMDE (MIT): Markdown エディタ（ツールバー・ショートカット） -->
+  <!-- EasyMDE (MIT): Markdown エディタ（無ければプレーン textarea 編集にフォールバック） -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
   <script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 </head>
@@ -19,7 +19,8 @@
     <span id="filename">読み込み中…</span>
 
     <span id="toolbar-actions" style="display:none;">
-      <span id="dirty-flag" class="dirty-flag" style="display:none;">● 未保存</span>
+      <!-- 保存状態の永続表示。成功は一時、失敗/競合/退避は消さない -->
+      <span id="save-state" class="save-state" style="display:none;"></span>
 
       <!-- モード切替（表示制御はここに一元化） -->
       <span class="seg" role="group" aria-label="表示モード">
@@ -38,6 +39,9 @@
 
   <div id="status" class="status">Markdown を読み込んでいます…</div>
 
+  <!-- 致命的エラーの可視化バナー（無言で白画面にならないように） -->
+  <div id="fatal" class="status error" style="display:none;"></div>
+
   <!-- メイン領域: モードに応じて表示を切り替える -->
   <div id="main" style="display:none;">
     <!-- 表示（整形ビュー） -->
@@ -52,21 +56,93 @@
     </div>
   </div>
 
+  <!-- 競合・確認ダイアログ -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2 id="modal-title">確認</h2>
+      <p id="modal-body"></p>
+      <div id="modal-actions" class="modal-actions"></div>
+    </div>
+  </div>
+
   <script>
+    // 無言の白画面を防ぐ: どんな JS 例外も画面に出す。
+    function showFatal(msg) {
+      var f = document.getElementById('fatal');
+      if (!f) { return; }
+      f.style.display = 'block';
+      f.textContent = '⚠ ' + msg;
+    }
+    window.onerror = function (message, source, lineno, colno, error) {
+      showFatal('スクリプトエラー: ' + message + ' (' + (lineno || '?') + ':' + (colno || '?') + ')');
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function (e) {
+      showFatal('未処理の拒否: ' + (e && e.reason ? e.reason : e));
+    });
+
     var FILE_ID = '<?= fileId ?>';
+
+    // CDN ライブラリの可用性。落ちていればフォールバックする。
+    var HAS_MARKED  = (typeof marked !== 'undefined');
+    var HAS_PURIFY  = (typeof DOMPurify !== 'undefined');
+    var HAS_EASYMDE = (typeof EasyMDE !== 'undefined');
+    // 整形プレビュー可否（パーサとサニタイザの両方が要る。サニタイズ無しの生 HTML は出さない）
+    var CAN_RENDER  = HAS_MARKED && HAS_PURIFY;
+
+    var LS_KEY = 'gmdv:draft:' + FILE_ID;
 
     var state = {
       name: '',
       original: '',     // 最後に保存（読み込み）した本文
+      rev: null,        // 読み込み時のリビジョン {md5, modifiedTime, version}
+      canEdit: true,    // 書き込み権限
       easymde: null,
       mode: 'view',     // 'view' | 'edit' | 'split'
       widthFull: false,
-      saving: false
+      saving: false,
+      narrow: false     // 狭幅（split 無効）
     };
 
+    // ---- テキスト取得（EasyMDE があればそこから、無ければ textarea から）----
+    // 注意: textarea はエディタを一度も開いていないと空（""）。view モードで
+    // これを描画に使うと本文が消える。editor.bound 済み（= 実際に編集 UI を
+    // 初期化した）ときだけ textarea を信用し、それ以外は state.original を返す。
+    function currentText() {
+      if (state.easymde) return state.easymde.value();
+      var ta = document.getElementById('editor');
+      if (ta && ta._bound) return ta.value;
+      return state.original;
+    }
+    function setEditorText(text) {
+      if (state.easymde) state.easymde.value(text);
+      else { var ta = document.getElementById('editor'); if (ta) ta.value = text; }
+    }
+
+    // ---- 整形描画（フォールバック付き）----
     function renderMd(target, rawMd) {
-      var dirty = marked.parse(rawMd, { gfm: true, breaks: false });
-      target.innerHTML = DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true } });
+      // CAN_RENDER でも marked/DOMPurify の実行時例外で白画面にならないよう try/catch。
+      // 失敗したら必ずプレーン表示に落とす（本文が消えないことを最優先）。
+      try {
+        if (CAN_RENDER) {
+          var dirty = marked.parse(rawMd, { gfm: true, breaks: false });
+          var clean = DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true }, ADD_ATTR: ['target'] });
+          target.innerHTML = clean;
+          // 外部リンクは新規タブ + noopener
+          var links = target.querySelectorAll('a[href]');
+          for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href') || '';
+            if (/^https?:\/\//i.test(href)) { links[i].target = '_blank'; links[i].rel = 'noopener noreferrer'; }
+          }
+          target.classList.remove('plain-fallback');
+          return;
+        }
+      } catch (e) {
+        showFatal('整形描画に失敗したためプレーン表示にしました: ' + (e && e.message ? e.message : e));
+      }
+      // marked/DOMPurify が無い・または描画失敗時は整形せずプレーン表示（XSS を避けるため textContent）
+      target.textContent = rawMd;
+      target.classList.add('plain-fallback');
     }
 
     function showStatus(msg, isError) {
@@ -77,36 +153,77 @@
       document.getElementById('main').style.display = 'none';
     }
 
-    function currentText() {
-      return state.easymde ? state.easymde.value() : state.original;
-    }
     function isDirty() {
       return (state.mode === 'edit' || state.mode === 'split') && currentText() !== state.original;
     }
-    function updateDirtyFlag() {
-      var el = document.getElementById('dirty-flag');
-      if (isDirty()) { el.style.display = 'inline'; el.textContent = '● 未保存'; el.className = 'dirty-flag'; }
-      else { el.style.display = 'none'; }
+
+    // ---- 保存状態の表示（永続 / 一時）----
+    // kind: 'dirty' | 'saving' | 'saved' | 'error' | 'conflict' | 'draft'
+    var stateTimer = null;
+    function setSaveState(kind, msg, transient) {
+      var el = document.getElementById('save-state');
+      if (stateTimer) { clearTimeout(stateTimer); stateTimer = null; }
+      if (!kind) { el.style.display = 'none'; el.textContent = ''; return; }
+      el.style.display = 'inline-flex';
+      el.textContent = msg;
+      el.className = 'save-state ' + kind;
+      if (transient) {
+        stateTimer = setTimeout(function () { refreshSaveState(); }, 2500);
+      }
+    }
+    // 現在のダーティ状態に基づいて常設表示を戻す（成功トースト消滅後など）
+    function refreshSaveState() {
+      if (state.saving) { setSaveState('saving', '💾 保存中…'); return; }
+      if (hasLocalDraft()) { setSaveState('draft', '⚠ 未保存の退避あり'); return; }
+      if (isDirty()) { setSaveState('dirty', '● 未保存'); return; }
+      setSaveState(null);
+    }
+
+    // ---- localStorage 退避 ----
+    // 戻り値: 退避できたら true。失敗（QuotaExceeded / sandbox で不可）なら false。
+    function saveLocalDraft() {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({ t: Date.now(), name: state.name, content: currentText() }));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    function readLocalDraft() {
+      try { var v = localStorage.getItem(LS_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+    }
+    function hasLocalDraft() {
+      var d = readLocalDraft();
+      return !!(d && typeof d.content === 'string' && d.content !== state.original);
+    }
+    function clearLocalDraft() {
+      try { localStorage.removeItem(LS_KEY); } catch (e) {}
+    }
+    // 退避可否を保存状態メッセージに添える。退避失敗は「最後の防波堤が無い」ので強く警告する。
+    function draftSuffix(saved) {
+      return saved
+        ? '（編集はこのブラウザに退避済み）'
+        : '（⚠ 退避できませんでした。画面を閉じる前に内容をコピーしてください）';
     }
 
     // ---- モード切替（表示制御の一元管理）----
     function setMode(mode) {
+      // 狭幅では split を edit に落とす
+      if (mode === 'split' && state.narrow) mode = 'edit';
       state.mode = mode;
       var content = document.getElementById('content');
       var editArea = document.getElementById('edit-area');
       var btnSave = document.getElementById('btn-save');
 
-      // セグメントのアクティブ表示
       document.getElementById('m-view').classList.toggle('is-active', mode === 'view');
       document.getElementById('m-edit').classList.toggle('is-active', mode === 'edit');
       document.getElementById('m-split').classList.toggle('is-active', mode === 'split');
 
-      // body にモードクラス（CSS で分割/単一を制御）
       document.body.classList.remove('mode-view', 'mode-edit', 'mode-split');
       document.body.classList.add('mode-' + mode);
 
       if (mode === 'view') {
-        renderMd(content, currentText());  // 編集内容があればそれを反映
+        renderMd(content, currentText());
         content.style.display = 'block';
         editArea.style.display = 'none';
         btnSave.style.display = 'none';
@@ -114,14 +231,11 @@
         initEditorIfNeeded();
         content.style.display = 'none';
         editArea.style.display = 'flex';
-        btnSave.style.display = 'inline-block';
-        // 分割時は右ペインにライブプレビュー
-        if (mode === 'split') {
-          renderMd(document.getElementById('preview-pane'), currentText());
-        }
+        btnSave.style.display = state.canEdit ? 'inline-block' : 'none';
+        if (mode === 'split') renderMd(document.getElementById('preview-pane'), currentText());
         setTimeout(function () { if (state.easymde) state.easymde.codemirror.refresh(); }, 0);
       }
-      updateDirtyFlag();
+      refreshSaveState();
     }
 
     function setWidthFull(full) {
@@ -132,15 +246,45 @@
       setTimeout(function () { if (state.easymde) state.easymde.codemirror.refresh(); }, 0);
     }
 
+    // ---- 狭幅監視 ----
+    function applyNarrow() {
+      var narrow = window.innerWidth < 720;
+      if (narrow === state.narrow) return;
+      state.narrow = narrow;
+      document.body.classList.toggle('is-narrow', narrow);
+      // split 表示中に狭くなったら edit に落とす
+      if (narrow && state.mode === 'split') setMode('edit');
+    }
+
+    function onEditChange() {
+      if (isDirty()) saveLocalDraft();
+      if (state.mode === 'split') renderMd(document.getElementById('preview-pane'), currentText());
+      refreshSaveState();
+    }
+
     function initEditorIfNeeded() {
-      if (state.easymde) return;
+      if (state.easymde || !HAS_EASYMDE) {
+        // EasyMDE 無し: プレーン textarea にイベントを付ける（初回のみ）
+        if (!HAS_EASYMDE) {
+          var ta = document.getElementById('editor');
+          ta.classList.add('plain-editor');
+          if (!ta._bound) {
+            ta.value = state.original;
+            ta.addEventListener('input', onEditChange);
+            ta.addEventListener('keydown', function (e) {
+              if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); doSave(); }
+            });
+            ta._bound = true;
+          }
+        }
+        return;
+      }
       state.easymde = new EasyMDE({
         element: document.getElementById('editor'),
         initialValue: state.original,
         autoDownloadFontAwesome: true,
         spellChecker: false,
         status: ['lines', 'words'],
-        // ツールバーは編集操作だけ（preview/side-by-side/guide は topbar に集約したので除外）
         toolbar: [
           'bold', 'italic', 'heading', '|',
           'quote', 'unordered-list', 'ordered-list', '|',
@@ -155,42 +299,54 @@
           toggleUnorderedList: 'Ctrl-L'
         }
       });
-
       var cm = state.easymde.codemirror;
-      cm.on('change', function () {
-        updateDirtyFlag();
-        if (state.mode === 'split') {
-          renderMd(document.getElementById('preview-pane'), currentText());
-        }
-      });
-      // Ctrl/Cmd+S を Drive 保存に
+      cm.on('change', onEditChange);
       cm.options.extraKeys['Ctrl-S'] = function () { doSave(); };
       cm.options.extraKeys['Cmd-S'] = function () { doSave(); };
     }
 
     // ---- 保存 ----
-    function doSave() {
+    function doSave(force) {
       if (state.saving) return;
-      if (!isDirty()) { flash('変更はありません。'); return; }
+      if (!state.canEdit) { setSaveState('error', '⚠ 編集権限がありません', true); return; }
+      if (!force && !isDirty()) { setSaveState('saved', '変更はありません', true); return; }
       var text = currentText();
-      state.saving = true; setSaving(true);
+      state.saving = true; setSaving(true); setSaveState('saving', '💾 保存中…');
+      // 強制上書きのときは expectedRev を送らない（競合検出をスキップ）
+      var expectedRev = force ? null : state.rev;
 
       google.script.run
         .withSuccessHandler(function (result) {
           state.saving = false; setSaving(false);
           if (!result || !result.ok) {
-            flash('⚠ ' + ((result && result.error) ? result.error.message : '保存に失敗しました。'), true);
+            var saved = saveLocalDraft();
+            if (result && result.error && result.error.code === 'CONFLICT') {
+              if (result.rev) state.rev = result.rev; // 最新 rev を覚えておく
+              setSaveState('conflict', '⚠ 競合' + draftSuffix(saved));
+              showConflictDialog();
+              return;
+            }
+            setSaveState('error', '⚠ ' + ((result && result.error) ? result.error.message : '保存に失敗しました。') + draftSuffix(saved));
             return;
           }
+          // 成功
           state.original = text;
-          updateDirtyFlag();
-          flash('✅ 保存しました');
+          if (result.rev) state.rev = result.rev;
+          if (result.verified === false) {
+            // 200 は返ったが checksum 照合できず（不明状態）。退避を残し注意喚起。
+            var savedV = saveLocalDraft();
+            setSaveState('error', '△ 保存しましたが確認できませんでした。再読込で確認してください' + draftSuffix(savedV));
+          } else {
+            clearLocalDraft();
+            setSaveState('saved', '✅ 保存しました', true);
+          }
         })
         .withFailureHandler(function (err) {
           state.saving = false; setSaving(false);
-          flash('⚠ サーバーエラー: ' + (err && err.message ? err.message : err), true);
+          var saved = saveLocalDraft();
+          setSaveState('error', '⚠ サーバーエラー: ' + (err && err.message ? err.message : err) + draftSuffix(saved));
         })
-        .saveMarkdownForViewer(FILE_ID, text);
+        .saveMarkdownForViewer(FILE_ID, text, expectedRev);
     }
     function setSaving(on) {
       var btn = document.getElementById('btn-save');
@@ -198,29 +354,117 @@
       btn.textContent = on ? '💾 保存中…' : '💾 保存';
     }
 
-    var flashTimer = null;
-    function flash(msg, isError) {
-      var el = document.getElementById('dirty-flag');
-      el.style.display = 'inline';
-      el.textContent = msg;
-      el.className = 'dirty-flag' + (isError ? ' error' : ' ok');
-      if (flashTimer) clearTimeout(flashTimer);
-      flashTimer = setTimeout(updateDirtyFlag, 2500);
+    // ---- 競合ダイアログ ----
+    function showConflictDialog() {
+      showModal(
+        'ファイルが競合しています',
+        'このファイルは別の場所（他のタブ・他の端末・共同編集者）で更新されています。'
+          + 'このまま上書きすると、相手の変更が失われます。どうしますか？',
+        [
+          { label: '最新を再読込（自分の編集は退避されます）', kind: '', onClick: function () { hideModal(); reloadFromDrive(); } },
+          { label: '相手の最新変更を破棄して上書き', kind: 'danger', onClick: function () { hideModal(); doSave(true); } },
+          { label: 'キャンセル', kind: 'ghost', onClick: hideModal }
+        ]
+      );
     }
 
+    function reloadFromDrive() {
+      setSaveState('saving', '↻ 再読込中…');
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (!result || !result.ok) {
+            setSaveState('error', '⚠ 再読込に失敗しました');
+            return;
+          }
+          state.original = result.data.content;
+          state.rev = result.data.rev || null;
+          state.canEdit = result.data.canEdit !== false;
+          setEditorText(state.original);
+          if (state.mode === 'view') renderMd(document.getElementById('content'), state.original);
+          if (state.mode === 'split') renderMd(document.getElementById('preview-pane'), state.original);
+          // 退避ドラフトがあれば「あなたの編集は退避済み」を残す
+          refreshSaveState();
+          setSaveState('saved', '↻ 最新を読み込みました', true);
+        })
+        .withFailureHandler(function (err) { setSaveState('error', '⚠ 再読込エラー'); })
+        .getMarkdownForViewer(FILE_ID);
+    }
+
+    // ---- モーダル ----
+    function showModal(title, body, actions) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').textContent = body;
+      var box = document.getElementById('modal-actions');
+      box.innerHTML = '';
+      actions.forEach(function (a) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'modal-btn ' + (a.kind || '');
+        b.textContent = a.label;
+        b.addEventListener('click', a.onClick);
+        box.appendChild(b);
+      });
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    function hideModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    // ---- 退避ドラフト復元の提案 ----
+    function offerDraftRestore() {
+      var d = readLocalDraft();
+      if (!d || typeof d.content !== 'string' || d.content === state.original) return;
+      var when = new Date(d.t || Date.now());
+      showModal(
+        '未保存の編集が見つかりました',
+        '前回保存されなかった編集内容（' + when.toLocaleString() + '）が残っています。復元しますか？',
+        [
+          { label: '復元する', kind: '', onClick: function () {
+              hideModal();
+              setMode('edit');
+              setEditorText(d.content);
+              onEditChange();
+            } },
+          { label: '破棄する', kind: 'ghost', onClick: function () { hideModal(); clearLocalDraft(); refreshSaveState(); } }
+        ]
+      );
+    }
+
+    // ---- 読み込み完了 ----
     function onSuccess(result) {
+      try {
       if (!result || !result.ok) {
         showStatus((result && result.error) ? result.error.message : 'ファイルを読み込めませんでした。', true);
         return;
       }
       state.name = result.data.name;
       state.original = result.data.content;
-      document.getElementById('filename').textContent = state.name;
+      state.rev = result.data.rev || null;
+      state.canEdit = result.data.canEdit !== false;
+
+      document.getElementById('filename').textContent = state.name + (state.canEdit ? '' : '（閲覧のみ）');
       document.title = state.name + ' - Markdown Viewer';
       document.getElementById('toolbar-actions').style.display = 'inline-flex';
       document.getElementById('status').style.display = 'none';
       document.getElementById('main').style.display = 'block';
+
+      // 編集不可なら編集/分割ボタンを無効化
+      if (!state.canEdit) {
+        document.getElementById('m-edit').disabled = true;
+        document.getElementById('m-split').disabled = true;
+      }
       setMode('view');
+      offerDraftRestore();
+      } catch (e) {
+        // onSuccess 内のどこかで落ちても、本文（原文）だけは必ず出す
+        showFatal('表示処理でエラー: ' + (e && e.message ? e.message : e));
+        try {
+          document.getElementById('status').style.display = 'none';
+          document.getElementById('main').style.display = 'block';
+          var c = document.getElementById('content');
+          c.textContent = (result && result.data && result.data.content) ? result.data.content : '';
+          c.classList.add('plain-fallback');
+          c.style.display = 'block';
+        } catch (e2) {}
+      }
     }
     function onFailure(err) {
       showStatus('サーバーエラー: ' + (err && err.message ? err.message : err), true);
@@ -228,18 +472,20 @@
 
     window.addEventListener('load', function () {
       if (!FILE_ID) { showStatus('ファイルが指定されていません。Drive のサイドパネルから開いてください。', true); return; }
-      if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined' || typeof EasyMDE === 'undefined') {
-        showStatus('表示ライブラリの読み込みに失敗しました。ネットワークを確認してください。', true); return;
-      }
+      // marked/DOMPurify/EasyMDE が無くてもフォールバックで動くので、ここでは止めない。
+      // 致命的に全部落ちている場合だけ注意表示（ただし表示・編集・保存は継続）。
 
       document.getElementById('m-view').addEventListener('click', function () { setMode('view'); });
       document.getElementById('m-edit').addEventListener('click', function () { setMode('edit'); });
       document.getElementById('m-split').addEventListener('click', function () { setMode('split'); });
       document.getElementById('btn-width').addEventListener('click', function () { setWidthFull(!state.widthFull); });
-      document.getElementById('btn-save').addEventListener('click', doSave);
+      document.getElementById('btn-save').addEventListener('click', function () { doSave(); });
+
+      window.addEventListener('resize', applyNarrow);
+      applyNarrow();
 
       window.addEventListener('beforeunload', function (e) {
-        if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+        if (isDirty()) { saveLocalDraft(); e.preventDefault(); e.returnValue = ''; }
       });
 
       google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).getMarkdownForViewer(FILE_ID);

@@ -100,15 +100,22 @@
     color: #fff;
   }
 
-  .dirty-flag {
+  /* 保存状態バッジ（永続表示）。dirty/saving は控えめ、error/conflict は目立たせ消さない */
+  .save-state {
+    display: inline-flex;
+    align-items: center;
     font-size: 13px;
     font-weight: 600;
-    color: #b06000;
-    padding: 2px 6px;
+    padding: 3px 8px;
     border-radius: 6px;
+    white-space: nowrap;
   }
-  .dirty-flag.ok { color: #137333; }
-  .dirty-flag.error { color: #b3261e; }
+  .save-state.dirty  { color: #b06000; }
+  .save-state.saving { color: var(--muted); }
+  .save-state.saved  { color: #137333; }
+  .save-state.draft  { color: #b06000; background: #fef7e0; }
+  .save-state.error    { color: #b3261e; background: #fce8e6; }
+  .save-state.conflict { color: #b3261e; background: #fce8e6; }
 
   /* --- メイン領域 --- */
   /* 幅: 固定 / 全幅。単一モード(表示・編集)は読みやすい 980px、
@@ -248,4 +255,83 @@
     border-top: 1px solid var(--border);
     margin: 24px 0;
   }
+
+  /* CDN(marked/DOMPurify) が落ちたときのプレーン表示。整形せず原文を等幅で出す */
+  .markdown-body.plain-fallback {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+      "Liberation Mono", Menlo, monospace;
+    font-size: 14px;
+  }
+
+  /* EasyMDE が落ちたときのプレーン textarea エディタ */
+  textarea.plain-editor {
+    display: block;
+    width: 100%;
+    min-height: calc(100vh - var(--topbar-h) - 40px);
+    border: 0;
+    outline: none;
+    resize: vertical;
+    padding: 16px 24px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+      "Liberation Mono", Menlo, monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+  }
+
+  /* --- 競合・確認モーダル --- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, .4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal {
+    background: var(--bg);
+    border-radius: 12px;
+    max-width: 480px;
+    width: 100%;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .24);
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 1.15em; }
+  .modal p { margin: 0 0 20px; color: var(--fg); line-height: 1.6; }
+  .modal-actions { display: flex; flex-direction: column; gap: 8px; }
+  .modal-btn {
+    font: inherit;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .modal-btn:hover { filter: brightness(1.05); }
+  .modal-btn.ghost { background: var(--bg); color: var(--fg); }
+  .modal-btn.ghost:hover { background: var(--code-bg); filter: none; }
+  .modal-btn.danger { background: #b3261e; border-color: #b3261e; }
+
+  /* --- 狭幅対応（モバイル/分割不可） --- */
+  body.is-narrow #topbar {
+    padding: 0 12px;
+    gap: 8px;
+    /* 折り返してもファイル名が本文を潰さないよう、ツールバーは縮める */
+    flex-wrap: nowrap;
+  }
+  body.is-narrow #filename { font-size: 14px; }
+  body.is-narrow .segbtn { padding: 6px 8px; }
+  body.is-narrow #m-split { display: none; }   /* 狭幅では分割を出さない */
+  body.is-narrow #btn-width { display: none; }  /* 幅トグルも不要 */
+  body.is-narrow.mode-split #preview-pane { display: none; }
+  body.is-narrow.mode-split #editor-pane { flex: 1 1 100%; }
+  body.is-narrow .markdown-body { padding: 16px 14px 64px; }
 </style>
