@@ -53,7 +53,7 @@ Markdown Viewer for Drive（以下「本アドオン」）は、Google ドライ
   アクセス権の取り消しは、Google アカウントの「サードパーティアプリとサービス」設定から
   本アドオンの権限を削除することで可能です。
 - ご質問・ご要望は以下までご連絡ください。
-  - 連絡先: **（公開前に記入: サポート用メールアドレス）**
+  - 連絡先: **kai.azegami@gmail.com**
 
 ### 7. 変更
 本ポリシーは予告なく変更されることがあります。重要な変更がある場合は本ページで告知します。
@@ -99,7 +99,7 @@ The Add-on operates **only on files the user explicitly selects or authorizes**.
 ### 6. Your Rights and Contact
 - Since the Add-on stores no data on servers, there is no developer-side data to delete. You can
   revoke access anytime from your Google Account's "Third-party apps & services" settings.
-- Contact: **(fill in before release: support email address)**
+- Contact: **kai.azegami@gmail.com**
 
 ### 7. Changes
 This policy may change without prior notice. Significant changes will be announced on this page.

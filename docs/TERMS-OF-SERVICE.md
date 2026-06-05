@@ -42,7 +42,7 @@
 規約に同意したものとみなします。
 
 ### 8. お問い合わせ
-- 連絡先: **（公開前に記入: サポート用メールアドレス）**
+- 連絡先: **kai.azegami@gmail.com**
 
 ---
 
@@ -77,4 +77,4 @@ CDN, each subject to its own terms.
 These Terms may change without prior notice. Continued use after changes constitutes acceptance.
 
 ### 8. Contact
-Contact: **(fill in before release: support email address)**
+Contact: **kai.azegami@gmail.com**

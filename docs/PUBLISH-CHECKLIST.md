@@ -132,6 +132,8 @@ GCP プロジェクトで **Google Workspace Marketplace SDK** を有効化し�
 | Apps Script scriptId | `1U04yK4EOYI6PTq7AQKPTOwYHo_lvKBbxbUYC9nTGF8hvrCLZtGg-D7yo` |
 | 標準 GCP プロジェクト番号 | `480634850677`（markdown-viewer-drive-498312） |
 | Web アプリ /exec URL | `https://script.google.com/macros/s/AKfycbxNtGph7vhdm9tYBGM07VktASW3Mj0cg6VGJ_0NMDQUUqJ_VagwaR8hbHhkoxHFTS0t/exec` |
-| プライバシーポリシー URL | **（フェーズ 1 で確定）** |
-| 利用規約 URL | **（フェーズ 1 で確定）** |
-| サポートメール | **（フェーズ 1 で確定）** |
+| プライバシーポリシー URL | **https://kazegami-mm.github.io/gdrive-md-viewer/docs/PRIVACY-POLICY** |
+| 利用規約 URL | **https://kazegami-mm.github.io/gdrive-md-viewer/docs/TERMS-OF-SERVICE** |
+| アイコン raw URL（logoUrl 用） | **https://raw.githubusercontent.com/kazegami-mm/gdrive-md-viewer/main/assets/icon-128.png** |
+| GitHub Pages トップ | **https://kazegami-mm.github.io/gdrive-md-viewer/** |
+| サポートメール | **kai.azegami@gmail.com** |

@@ -20,7 +20,7 @@
   "addOns": {
     "common": {
       "name": "Markdown Viewer for Drive",
-      "logoUrl": "https://www.gstatic.com/images/branding/product/2x/drive_2020q4_48dp.png",
+      "logoUrl": "https://raw.githubusercontent.com/kazegami-mm/gdrive-md-viewer/main/assets/icon-128.png",
       "layoutProperties": {
         "primaryColor": "#1a73e8",
         "secondaryColor": "#34a853"

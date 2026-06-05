@@ -139,9 +139,9 @@ shadow. Background fully transparent (alpha=0). Square, centered, safe margin.
 
 | 項目 | 値 |
 |------|----|
-| プライバシーポリシー URL | `docs/PRIVACY-POLICY.md` を GitHub Pages 等で公開 → **（要 URL）** |
-| 利用規約 URL | `docs/TERMS-OF-SERVICE.md` を公開 → **（要 URL）** |
-| サポート URL / メール | **（要記入）** |
+| プライバシーポリシー URL | **https://kazegami-mm.github.io/gdrive-md-viewer/docs/PRIVACY-POLICY** |
+| 利用規約 URL | **https://kazegami-mm.github.io/gdrive-md-viewer/docs/TERMS-OF-SERVICE** |
+| サポート URL / メール | **kai.azegami@gmail.com** |
 | 公式サイト / GitHub | （任意）リポジトリ URL |
 
 ---
