@@ -50,6 +50,23 @@
 
 ---
 
+## フェーズ 2.5: アドオン内ロゴ（logoUrl）の差し替え
+
+現在 `appsscript.json` の `addOns.common.logoUrl` は Google ドライブ公式アイコン
+（`gstatic.com/.../drive_2020q4_48dp.png`）を指しているため、**サイドパネルのロゴが
+自作アイコンになっていない**。`logoUrl` は HTTP で読める公開 URL でなければならない。
+
+- [ ] GitHub リポジトリを **public** 化（現状 private）
+- [ ] `logoUrl` を自作アイコンの raw URL に差し替え:
+  - `https://raw.githubusercontent.com/kazegami-mm/gdrive-md-viewer/main/assets/icon-128.png`
+  - （または GitHub Pages の `https://kazegami-mm.github.io/gdrive-md-viewer/assets/icon-128.png`）
+- [ ] `clasp push` → サイドパネルを開いてロゴが変わったか確認
+
+> ⚠️ private リポの raw URL は認証が要るため logoUrl から読めない。public 化が前提。
+> public 化すれば法務ドキュメントの GitHub Pages 公開（フェーズ1）も同時に進む。
+
+---
+
 ## フェーズ 3: OAuth 同意画面の本番化
 
 GCP プロジェクト（標準プロジェクト `480634850677` / markdown-viewer-drive）の
