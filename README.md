@@ -22,6 +22,7 @@ Google ドライブ上の `.md` ファイルを**整形表示**する Google Wor
 | [`docs/SCREENSHOT-GUIDE.md`](docs/SCREENSHOT-GUIDE.md) | スクリーンショット撮影手順（5 シーン・整形・命名） |
 | [`docs/BROWSER-CLAUDE-TEST-PROMPT.md`](docs/BROWSER-CLAUDE-TEST-PROMPT.md) | ブラウザ操作 Claude に実機テストを代行させるプロンプト（T1〜T10） |
 | [`docs/BROWSER-CLAUDE-SCREENSHOT-PROMPT.md`](docs/BROWSER-CLAUDE-SCREENSHOT-PROMPT.md) | ブラウザ操作 Claude にスクショ撮影を代行させるプロンプト（5 シーン） |
+| [`docs/TESTER-INSTALL-GUIDE.md`](docs/TESTER-INSTALL-GUIDE.md) | テスター向けインストール手順（Marketplace 公開前にフル機能を配る） |
 
 > 🔒 **データ保護**: 保存時に競合検出（楽観ロック）・保存後 md5 検証・編集権限/MIME 検証を行い、
 > 既存ファイルを黙って壊さない設計。CDN 障害時はプレーン textarea にフォールバックして編集・保存を維持。
